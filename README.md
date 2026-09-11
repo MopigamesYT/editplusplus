@@ -1,10 +1,73 @@
-# ![Application Icon for Edit](./assets/edit.svg) Edit
+# ![Application Icon for Edit](./assets/edit.svg) edit++
 
-A simple editor for simple needs.
+A pluggable fork of [Microsoft Edit](https://github.com/microsoft/edit).
 
-This editor pays homage to the classic [MS-DOS Editor](https://en.wikipedia.org/wiki/MS-DOS_Editor), but with a modern interface and input controls similar to VS Code. The goal is to provide an accessible editor that even users largely unfamiliar with terminals can easily use.
+Upstream Edit pays homage to the classic [MS-DOS Editor](https://en.wikipedia.org/wiki/MS-DOS_Editor) with a modern interface and VS Code-like input controls. edit++ keeps all of that and makes the editor extensible: every action is a named command, every key is rebindable, and plugins can add their own.
+
+The executable is named `epp`, so it sits alongside an existing `edit` or `msedit` install rather than replacing it.
 
 ![Screenshot of Edit with the About dialog in the foreground](./assets/edit_hero_image.png)
+
+## What this fork adds
+
+* **A command registry.** Every action the editor can perform has a dotted name such as `file.save` or `view.goToFile`. Menus, keybindings and plugins all go through it.
+* **A command palette.** `Ctrl+Shift+P` lists every command with its binding, filtered fuzzily.
+* **Rebindable keys, including chords.** Bindings live in `settings.json` and can span several keypresses, so a leader key works.
+* **A which-key hint.** Start a chord and a panel shows what could complete it.
+* **Plugins.** See [docs/PLUGINS.md](docs/PLUGINS.md).
+
+## Configuration
+
+Settings live in `settings.json` under:
+
+Platform | Path
+--- | ---
+Linux / other | `$XDG_CONFIG_HOME/epp/` or `~/.config/epp/`
+macOS | `~/Library/Application Support/edit++/`
+Windows | `%APPDATA%\edit++\`
+
+Open it from the editor with **File → Preferences**, or `Ctrl+K F P`.
+
+If you are coming from Microsoft Edit and have no `settings.json` here yet, edit++ reads the upstream one instead, so your existing settings keep working.
+
+### Keybindings
+
+```jsonc
+{
+  // The chord prefix. Defaults to Ctrl+K.
+  "keyboard.leader": "ctrl+k",
+
+  "keyboard.bindings": {
+    "ctrl+shift+p": "view.commandPalette",
+    "<leader>ff":   "view.goToFile",
+    "ctrl+k ctrl+s": "file.save",
+
+    // false or null removes a default binding.
+    "ctrl+w": false
+  }
+}
+```
+
+Both spellings parse and can be mixed: `ctrl+shift+p` and `<C-S-p>` mean the same thing. Chords are written as space-separated keys, or as characters following `<leader>`. Named keys are `f1`-`f12`, `esc`, `tab`, `enter`, `space`, `backspace`, `delete`, `insert`, `home`, `end`, `pageup`, `pagedown`, and the arrows.
+
+Only letters, digits, space and those named keys can be bound. Punctuation such as `/` cannot, because terminals do not report it as a distinct key. A binding that cannot be parsed is reported in the error dialog at startup rather than being ignored.
+
+Run `config.reload` (`Ctrl+K C R`) to apply changes without restarting.
+
+### Default bindings
+
+Chord | Command
+--- | ---
+`Ctrl+K Ctrl+K` | Command palette
+`Ctrl+K F F` | Go to file
+`Ctrl+K F N` | New file
+`Ctrl+K F S` | Save
+`Ctrl+K F P` | Preferences
+`Ctrl+K U W` | Toggle word wrap
+`Ctrl+K C R` | Reload configuration
+`Ctrl+K H A` | About
+
+Everything Microsoft Edit bound before, such as `Ctrl+S` and `Ctrl+P`, is unchanged.
 
 ## Installation
 
@@ -27,7 +90,7 @@ If your distribution does not provide binaries, or if you'd like to build your o
 * ICU (e.g. libicu78, libicu, icu)
 * curl/wget and tar
 
-The following command will then install `msedit` into `~/.local/bin`:
+The following command will then install `epp` into `~/.local/bin`:
 ```sh
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/microsoft/edit/main/assets/install.sh | sh
 ```
@@ -73,10 +136,7 @@ Environment variable | Description
 
 ### Package Naming
 
-The canonical executable name is "edit" and the alternative name is "msedit".
-We're aware of the potential conflict of "edit" with existing commands and recommend alternatively naming packages and executables "msedit".
-Names such as "ms-edit" should be avoided.
-Assigning an "edit" alias is recommended, if possible.
+The canonical executable name is `epp`. Do not name it `edit` or `msedit`: those belong to upstream Microsoft Edit, and edit++ is built to be installed alongside it rather than to replace it.
 
 ### ICU library name (SONAME)
 

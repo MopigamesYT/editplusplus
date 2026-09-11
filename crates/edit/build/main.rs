@@ -134,12 +134,12 @@ fn configure_windows_binary(target_os: TargetOs) {
         return;
     }
 
-    let manifest_path = "src/bin/edit/edit.exe.manifest";
+    let manifest_path = "src/bin/epp/epp.exe.manifest";
     let icon_path = "../../assets/edit.ico";
 
     winresource::WindowsResource::new()
         .set_manifest_file(manifest_path)
-        .set("FileDescription", "Microsoft Edit")
+        .set("FileDescription", "edit++")
         .set("LegalCopyright", "© Microsoft Corporation. All rights reserved.")
         .set_icon(icon_path)
         .compile()

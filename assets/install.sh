@@ -157,7 +157,7 @@ else
     (cd "$srcdir" && cargo build -p edit --release)
 fi
 
-bin="$srcdir/target/release/edit"
+bin="$srcdir/target/release/epp"
 [ -x "$bin" ] || die "Build failed: binary not found."
 
 #### Install
@@ -172,31 +172,17 @@ fi
 
 log "Installing to $dest"
 $run mkdir -p "$dest"
-$run cp "$bin" "$dest/msedit"
-$run chmod 755 "$dest/msedit"
-if [ ! -e "$dest/edit" ] || [ "$(readlink "$dest/edit" 2>/dev/null)" = "msedit" ]; then
-    $run ln -sf msedit "$dest/edit"
-    edit_linked=1
-else
-    edit_linked=0
-fi
+$run cp "$bin" "$dest/epp"
+$run chmod 755 "$dest/epp"
 
 #### Summary
 
 case ":$PATH:" in
     *":$dest:"*)
-        if [ "$edit_linked" = 1 ]; then
-            echo "✅ Done. Run 'edit' or 'msedit' to start."
-        else
-            echo "✅ Done. Run 'msedit' to start."
-        fi
+        echo "✅ Done. Run 'epp' to start."
         ;;
     *)
         echo "⚠️ Done. $dest is not in PATH; you may need to add it."
-        if [ "$edit_linked" = 1 ]; then
-            echo "Run '$dest/edit' or '$dest/msedit' to start."
-        else
-            echo "Run '$dest/msedit' to start."
-        fi
+        echo "Run '$dest/epp' to start."
         ;;
 esac

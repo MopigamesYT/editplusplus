@@ -1,9 +1,9 @@
-name: msedit
+name: epp
 base: core24
 version: "2.0.0"
-summary: Edit is an MS-DOS inspired text editor from Microsoft
+summary: edit++ is a pluggable fork of Microsoft Edit
 description: |
-  Edit pays homage to the classic MS-DOS Editor, but with a modern interface and input controls similar to VS Code. Learn more at https://github.com/microsoft/edit
+  edit++ is a fork of Microsoft Edit that adds a command registry, rebindable multi-key keybindings, a command palette, and a Lua plugin system.
 
   Disclaimer: This is an unofficial Snap and it is not endorsed by nor affiliated officially with Microsoft Corporation.
 
@@ -11,8 +11,8 @@ grade: stable
 confinement: strict
 
 apps:
-  msedit:
-    command: bin/edit
+  epp:
+    command: bin/epp
     plugs:
       - home
 
