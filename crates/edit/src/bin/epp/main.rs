@@ -2,11 +2,15 @@
 // Licensed under the MIT License.
 
 mod apperr;
+mod commands;
 mod documents;
 mod draw_editor;
 mod draw_filepicker;
 mod draw_menubar;
+mod draw_palette;
 mod draw_statusbar;
+mod events;
+mod keymap;
 mod localization;
 mod settings;
 mod state;
@@ -18,10 +22,11 @@ use std::{env, process};
 use draw_editor::*;
 use draw_filepicker::*;
 use draw_menubar::*;
+use draw_palette::*;
 use draw_statusbar::*;
 use edit::framebuffer::{self, IndexedColor};
 use edit::helpers::*;
-use edit::input::{self, kbmod, vk};
+use edit::input;
 use edit::oklab::StraightRgba;
 use edit::tui::*;
 use edit::vt::{self, Token};
@@ -76,6 +81,8 @@ fn run() -> apperr::Result<()> {
     if let Err(err) = Settings::reload() {
         state.add_error(err);
     }
+    // Keybindings come from the same file, so the keymap is rebuilt with it.
+    reload_keymap(&mut state);
 
     if handle_args(&mut state)? {
         return Ok(());
@@ -326,7 +333,7 @@ fn handle_stdin(state: &mut State) -> apperr::Result<()> {
 
 fn print_help() {
     sys::write_stdout(concat!(
-        "Usage: edit [OPTIONS] [FILE]...\n",
+        "Usage: epp [OPTIONS] [FILE]...\n",
         "Options:\n",
         "    -g, --goto <FILE:LINE[:CHARACTER]>    Open a file at the specified line and character position\n",
         "    -h, --help                            Print this help message\n",
@@ -336,11 +343,27 @@ fn print_help() {
 }
 
 fn print_version() {
-    sys::write_stdout(concat!("edit version ", env!("CARGO_PKG_VERSION"), "\n"));
+    sys::write_stdout(concat!("edit++ version ", env!("CARGO_PKG_VERSION"), "\n"));
 }
 
 fn draw(tui: &mut Tui, input: Option<input::Input>, state: &mut State) {
     let ctx = &mut tui.create_context(input);
+
+    // An unfinished chord owns the next keypress outright. This has to run
+    // before anything draws: the textarea handles input as it renders, so by
+    // the time the usual keybinding pass runs at the end of this function, the
+    // second key of a chord would already have been typed into the document.
+    if state.keymap.has_pending()
+        && let Some(key) = ctx.keyboard_input()
+    {
+        let resolution = state.keymap.resolve(key);
+        ctx.set_input_consumed();
+        ctx.needs_rerender();
+
+        if let keymap::Resolution::Run(id) = resolution {
+            commands::exec(ctx, state, id);
+        }
+    }
 
     draw_menubar(ctx, state);
     draw_editor(ctx, state);
@@ -376,46 +399,35 @@ fn draw(tui: &mut Tui, input: Option<input::Input>, state: &mut State) {
     if ctx.clipboard_ref().wants_host_sync() {
         draw_handle_clipboard_change(ctx, state);
     }
+    if state.wants_command_palette {
+        draw_command_palette(ctx, state);
+    }
     if state.error_log_count != 0 {
         draw_error_log(ctx, state);
     }
+    if state.keymap.has_pending() {
+        draw_which_key(ctx, state);
+    }
 
+    // Keybindings, for input nothing else claimed. Running last is what lets a
+    // focused control keep a key for itself.
     if let Some(key) = ctx.keyboard_input() {
-        // Shortcuts that are not handled as part of the textarea, etc.
-
-        if key == kbmod::CTRL | vk::N {
-            draw_add_untitled_document(ctx, state);
-        } else if key == kbmod::CTRL | vk::O {
-            state.wants_file_picker = StateFilePicker::Open;
-        } else if key == kbmod::CTRL | vk::S {
-            state.wants_save = true;
-        } else if key == kbmod::CTRL_SHIFT | vk::S {
-            state.wants_file_picker = StateFilePicker::SaveAs;
-        } else if key == kbmod::CTRL | vk::W {
-            state.wants_close = true;
-        } else if key == kbmod::CTRL | vk::P {
-            state.wants_go_to_file = true;
-        } else if key == kbmod::CTRL | vk::Q {
-            state.wants_exit = true;
-        } else if key == kbmod::CTRL | vk::G {
-            state.wants_goto = true;
-        } else if key == kbmod::CTRL | vk::F && state.wants_search.kind != StateSearchKind::Disabled
-        {
-            state.wants_search.kind = StateSearchKind::Search;
-            state.wants_search.focus = true;
-        } else if key == kbmod::CTRL | vk::R && state.wants_search.kind != StateSearchKind::Disabled
-        {
-            state.wants_search.kind = StateSearchKind::Replace;
-            state.wants_search.focus = true;
-        } else if key == vk::F3 {
-            search_execute(ctx, state, SearchAction::Search);
-        } else {
-            return;
+        match state.keymap.resolve(key) {
+            // Nothing is bound to this key. Leave it alone; it may well be text.
+            keymap::Resolution::Unhandled => {}
+            keymap::Resolution::Pending | keymap::Resolution::Cancelled => {
+                ctx.needs_rerender();
+                ctx.set_input_consumed();
+            }
+            keymap::Resolution::Run(id) => {
+                // `exec` reports false when the command was inapplicable, e.g.
+                // a document command with no document open. Leaving the key
+                // unconsumed then keeps the old behavior of falling through.
+                if commands::exec(ctx, state, id) {
+                    ctx.set_input_consumed();
+                }
+            }
         }
-
-        // All of the above shortcuts happen to require a rerender.
-        ctx.needs_rerender();
-        ctx.set_input_consumed();
     }
 }
 
@@ -455,7 +467,7 @@ fn write_terminal_title<'a>(arena: &'a Arena, output: &mut BString<'a>, state: &
         output.push_str(arena, &sanitized);
         output.push_str(arena, " - ");
     }
-    output.push_str(arena, "edit\x1b\\");
+    output.push_str(arena, "edit++\x1b\\");
 
     state.osc_title_file_status.filename = filename.to_string();
     state.osc_title_file_status.dirty = dirty;

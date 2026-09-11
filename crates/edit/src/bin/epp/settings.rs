@@ -12,6 +12,12 @@ use crate::apperr;
 pub struct Settings {
     pub path: PathBuf,
     pub file_associations: Vec<(String, &'static Language)>,
+    /// The leader key spec, if the user set one. Parsed by the keymap, which
+    /// owns the binding syntax.
+    pub leader: Option<String>,
+    /// User keybindings as (spec, command name). A `None` command means the
+    /// user explicitly unbound that key.
+    pub keybindings: Vec<(String, Option<String>)>,
 }
 
 struct SettingsCell(SemiRefCell<Settings>);
@@ -28,7 +34,12 @@ impl Settings {
     }
 
     const fn new() -> Self {
-        Settings { path: PathBuf::new(), file_associations: Vec::new() }
+        Settings {
+            path: PathBuf::new(),
+            file_associations: Vec::new(),
+            leader: None,
+            keybindings: Vec::new(),
+        }
     }
 
     pub fn borrow() -> Ref<'static, Settings> {
@@ -82,26 +93,85 @@ impl Settings {
             }
         }
 
+        if let Some(leader) = root.get_str("keyboard.leader") {
+            self.leader = Some(leader.to_string());
+        }
+
+        if let Some(bindings) = root.get_object("keyboard.bindings") {
+            for &(key, ref value) in bindings.iter() {
+                // `null` and `false` both mean "unbind this", so that a user can
+                // drop a default binding without knowing what it was bound to.
+                let command = if value.is_null() || value.as_bool() == Some(false) {
+                    None
+                } else if let Some(name) = value.as_str() {
+                    Some(name.to_string())
+                } else {
+                    return Err(apperr::Error::SettingsInvalid("keyboard.bindings"));
+                };
+
+                self.keybindings.push((key.to_string(), command));
+            }
+        }
+
         Ok(())
     }
 }
 
 fn settings_json_path() -> Option<PathBuf> {
-    let mut config_dir = config_dir()?;
-    config_dir.push("settings.json");
-    Some(config_dir)
+    let mut path = config_dir()?;
+    path.push("settings.json");
+
+    // edit++ keeps its own config directory, but someone arriving from
+    // Microsoft Edit should not silently lose their settings. If this fork has
+    // no settings file yet and the upstream one does, read theirs.
+    if !path.exists()
+        && let Some(mut legacy) = legacy_config_dir()
+    {
+        legacy.push("settings.json");
+        if legacy.exists() {
+            return Some(legacy);
+        }
+    }
+
+    Some(path)
+}
+
+/// Where plugins live. Each plugin is a directory or a `.lua` file under here.
+#[allow(dead_code, reason = "used by the plugin host")]
+pub fn plugin_dir() -> Option<PathBuf> {
+    let mut dir = config_dir()?;
+    dir.push("plugins");
+    Some(dir)
+}
+
+fn var_path(key: &str) -> Option<PathBuf> {
+    std::env::var_os(key).map(PathBuf::from)
+}
+
+fn push(mut path: PathBuf, suffix: &str) -> PathBuf {
+    path.push(suffix);
+    path
 }
 
 fn config_dir() -> Option<PathBuf> {
-    fn var_path(key: &str) -> Option<PathBuf> {
-        std::env::var_os(key).map(PathBuf::from)
+    #[cfg(target_os = "windows")]
+    {
+        var_path("APPDATA").map(|p| push(p, "edit++"))
     }
-
-    fn push(mut path: PathBuf, suffix: &str) -> PathBuf {
-        path.push(suffix);
-        path
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    {
+        var_path("HOME").map(|p| push(p, "Library/Application Support/edit++"))
     }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
+    {
+        var_path("XDG_CONFIG_HOME")
+            .or_else(|| var_path("HOME").map(|p| push(p, ".config")))
+            .map(|p| push(p, "epp"))
+    }
+}
 
+/// Microsoft Edit's config directory, read from only as a fallback.
+fn legacy_config_dir() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {
         var_path("APPDATA").map(|p| push(p, "Microsoft\\Edit"))

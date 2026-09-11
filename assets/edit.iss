@@ -16,7 +16,7 @@ DefaultDirName={autopf}\Microsoft Edit
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 SetupIconFile=edit.ico
-UninstallDisplayIcon={app}\msedit.exe
+UninstallDisplayIcon={app}\epp.exe
 MinVersion=10.0
 ArchitecturesAllowed={#ArchitecturesAllowed}
 #if ArchitecturesAllowed != "x86"
@@ -34,11 +34,11 @@ SignedUninstallerDir={#SignedUninstallerDir}
 #endif
 
 [Tasks]
-Name: "path"; Description: "Add msedit to the system &PATH"; Flags: checkablealone
+Name: "path"; Description: "Add epp to the system &PATH"; Flags: checkablealone
 Name: "path\edit"; Description: "Also provide it as &edit, taking precedence over the edit.exe shipped with Windows"; Flags: dontinheritcheck
 
 [Files]
-Source: {#Source}; DestDir: "{app}"; DestName: "msedit.exe"; Flags: notimestamp ignoreversion
+Source: {#Source}; DestDir: "{app}"; DestName: "epp.exe"; Flags: notimestamp ignoreversion
 
 ; Just in case, ensure that the install dir is in a clean state.
 ; This also ensures that edit is not currently being used. :)
@@ -57,19 +57,19 @@ const
 
 var
     g_AppDirPath: String;
-    g_MseditExePath: String;
+    g_EppExePath: String;
     g_EditExePath: String;
 
 procedure InitializeGlobals;
 begin
     g_AppDirPath := ExpandConstant('{app}');
-    g_MseditExePath := ExpandConstant('{app}\msedit.exe');
+    g_EppExePath := ExpandConstant('{app}\epp.exe');
     g_EditExePath := ExpandConstant('{app}\edit.exe');
 end;
 
 procedure CreateHardlinks;
 begin
-    if not CreateHardLink(g_EditExePath, g_MseditExePath, 0) then
+    if not CreateHardLink(g_EditExePath, g_EppExePath, 0) then
         RaiseException('Failed to create hardlink for edit.exe');
 end;
 

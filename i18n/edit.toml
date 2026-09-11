@@ -2186,3 +2186,30 @@ uk = "Файл вже існує. Перезаписати?"
 vi = "Tệp đã tồn tại. Bạn có muốn ghi đè không?"
 zh-hans = "文件已存在。要覆盖它吗？"
 zh-hant = "檔案已存在。要覆寫嗎？"
+
+# The command palette, listing every command the editor and its plugins provide
+[CommandPalette]
+en = "Command Palette…"
+de = "Befehlspalette…"
+es = "Paleta de comandos…"
+fr = "Palette de commandes…"
+it = "Riquadro comandi…"
+pt-br = "Paleta de comandos…"
+
+# Repeat the last search
+[EditFindNext]
+en = "Find Next"
+de = "Weitersuchen"
+es = "Buscar siguiente"
+fr = "Rechercher suivant"
+it = "Trova successivo"
+pt-br = "Localizar próxima"
+
+# Re-read settings.json, including keybindings
+[ConfigReload]
+en = "Reload Configuration"
+de = "Konfiguration neu laden"
+es = "Recargar configuración"
+fr = "Recharger la configuration"
+it = "Ricarica configurazione"
+pt-br = "Recarregar configuração"

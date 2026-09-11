@@ -18,15 +18,15 @@ use crate::vt;
 /// Of course you could just translate on the ABI boundary, but my hope is that this
 /// design lets me realize some restrictions early on that I can't foresee yet.
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InputKey(u32);
 
 impl InputKey {
-    pub(crate) const fn new(v: u32) -> Self {
+    pub const fn new(v: u32) -> Self {
         Self(v)
     }
 
-    pub(crate) const fn from_ascii(ch: char) -> Option<Self> {
+    pub const fn from_ascii(ch: char) -> Option<Self> {
         if ch == ' ' || (ch >= '0' && ch <= '9') {
             Some(Self(ch as u32))
         } else if ch >= 'a' && ch <= 'z' {
@@ -38,39 +38,64 @@ impl InputKey {
         }
     }
 
-    pub(crate) const fn value(&self) -> u32 {
+    pub const fn value(&self) -> u32 {
         self.0
     }
 
-    pub(crate) const fn key(&self) -> Self {
+    pub const fn key(&self) -> Self {
         Self(self.0 & 0x00FFFFFF)
     }
 
-    pub(crate) const fn modifiers(&self) -> InputKeyMod {
+    pub const fn modifiers(&self) -> InputKeyMod {
         InputKeyMod(self.0 & 0xFF000000)
     }
 
-    pub(crate) const fn modifiers_contains(&self, modifier: InputKeyMod) -> bool {
+    pub const fn modifiers_contains(&self, modifier: InputKeyMod) -> bool {
         (self.0 & modifier.0) != 0
     }
 
-    pub(crate) const fn with_modifiers(&self, modifiers: InputKeyMod) -> Self {
+    pub const fn with_modifiers(&self, modifiers: InputKeyMod) -> Self {
         Self(self.0 | modifiers.0)
     }
 }
 
 /// A keyboard modifier. Ctrl/Alt/Shift.
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InputKeyMod(u32);
 
 impl InputKeyMod {
-    const fn new(v: u32) -> Self {
+    pub const fn new(v: u32) -> Self {
         Self(v)
     }
 
-    pub(crate) const fn contains(&self, modifier: Self) -> bool {
+    pub const fn value(&self) -> u32 {
+        self.0
+    }
+
+    pub const fn contains(&self, modifier: Self) -> bool {
         (self.0 & modifier.0) != 0
+    }
+}
+
+impl std::fmt::Debug for InputKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("InputKey(")?;
+        for (name, m) in [("Ctrl+", kbmod::CTRL), ("Alt+", kbmod::ALT), ("Shift+", kbmod::SHIFT)] {
+            if self.modifiers_contains(m) {
+                f.write_str(name)?;
+            }
+        }
+        match char::from_u32(self.key().0) {
+            Some(ch) if ch.is_ascii_graphic() => write!(f, "{ch})"),
+            _ => write!(f, "{:#04x})", self.key().0),
+        }
+    }
+}
+
+impl std::fmt::Debug for InputKeyMod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "InputKeyMod({:#010x})", self.0)
     }
 }
 

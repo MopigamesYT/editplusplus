@@ -13,7 +13,10 @@ use edit::tui::*;
 use edit::{buffer, icu};
 
 use crate::apperr;
+use crate::commands::Commands;
 use crate::documents::DocumentManager;
+use crate::events::EventQueue;
+use crate::keymap::{self, Keymap};
 use crate::localization::*;
 
 #[repr(transparent)]
@@ -136,6 +139,14 @@ pub struct State {
 
     pub documents: DocumentManager,
 
+    /// Every action the editor can perform, by name. Menus, keybindings and
+    /// plugins all go through here.
+    pub commands: Commands,
+    /// Which keys run which commands, including multi-key chords.
+    pub keymap: Keymap,
+    /// Editor events awaiting delivery to the plugin host.
+    pub events: EventQueue,
+
     // A ring buffer of the last 10 errors.
     pub error_log: [String; 10],
     pub error_log_index: usize,
@@ -156,6 +167,8 @@ pub struct State {
     pub search_success: bool,
 
     pub wants_language_picker: bool,
+    pub wants_command_palette: bool,
+    pub command_palette_needle: String,
 
     pub wants_encoding_picker: bool,
     pub wants_encoding_change: StateEncodingChange,
@@ -187,6 +200,10 @@ impl State {
 
             documents: Default::default(),
 
+            commands: Commands::new(),
+            keymap: Keymap::new(),
+            events: Default::default(),
+
             error_log: [const { String::new() }; 10],
             error_log_index: 0,
             error_log_count: 0,
@@ -206,6 +223,8 @@ impl State {
             search_success: true,
 
             wants_language_picker: false,
+            wants_command_palette: false,
+            command_palette_needle: Default::default(),
 
             wants_encoding_picker: false,
             encoding_picker_needle: Default::default(),
@@ -231,7 +250,13 @@ impl State {
     }
 
     pub fn add_error(&mut self, err: apperr::Error) -> bool {
-        let msg = format!("{}", FormatApperr::from(err));
+        self.add_error_message(format!("{}", FormatApperr::from(err)))
+    }
+
+    /// Records an already-formatted message. Config and plugin problems are
+    /// plain strings, not `apperr::Error`, but the user should see them the
+    /// same way.
+    pub fn add_error_message(&mut self, msg: String) -> bool {
         if msg.is_empty() {
             return false;
         }
@@ -241,6 +266,21 @@ impl State {
         self.error_log_count = self.error_log.len().min(self.error_log_count + 1);
         true
     }
+}
+
+/// Rebuilds the keymap from `settings.json`, reporting any binding that could
+/// not be applied. Split out because both startup and `config.reload` need it,
+/// and both have to sequence the borrows the same way.
+pub fn reload_keymap(state: &mut State) {
+    let errors = state.keymap.reload(&state.commands);
+    for err in errors {
+        state.add_error_message(err);
+    }
+}
+
+/// The keys typed so far in an unfinished chord, for the which-key hint.
+pub fn pending_chord_text(state: &State) -> String {
+    keymap::format_keys(state.keymap.pending())
 }
 
 pub fn draw_add_untitled_document(ctx: &mut Context, state: &mut State) {
